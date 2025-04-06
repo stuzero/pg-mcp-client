@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PG-MCP-Client{% endblock %}</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <!-- Top Navigation Bar -->
+    <nav class="bg-gray-800 text-white p-4 sticky top-0 z-50 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="text-xl font-bold">pg-mcp-client</div>
+            <div class="flex items-center space-x-4">
+                <!-- Add top navigation items here if needed -->
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Left Sidebar -->
+        <aside class="w-64 bg-gray-700 text-white p-4 overflow-y-auto">
+            <nav class="space-y-2">
+                <!-- Sidebar navigation items will go here -->
+                <a href="/" class="block py-2 px-4 rounded hover:bg-gray-600">Query</a>
+                <a href="/settings" class="block py-2 px-4 rounded hover:bg-gray-600">Settings</a>
+                <!-- More menu items can be added as needed -->
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-6 overflow-y-auto">
+            <div class="container mx-auto">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- No additional scripts needed - HTMX only -->
+</body>
+</html>

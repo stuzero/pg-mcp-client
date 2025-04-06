@@ -1,0 +1,12 @@
+[project]
+name = "pg-mcp-client"
+version = "0.1.0"
+description = "A UI and Agent for pg-mcp-server"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "jinja2>=3.1.6",
+    "mcp[cli]>=1.6.0",
+    "pydantic-ai>=0.0.52",
+    "starlette>=0.46.1",
+]

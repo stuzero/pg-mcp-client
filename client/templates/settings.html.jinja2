@@ -1,0 +1,70 @@
+{% extends "application.html.jinja2" %}
+
+{% block title %}Settings - PG-MCP-Client{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-auto p-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Application Settings</h1>
+    
+    {% if message %}
+    <div class="mb-4 p-4 rounded-lg {% if success %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+        {{ message }}
+    </div>
+    {% endif %}
+    
+    <form hx-post="/settings" hx-target="body" class="space-y-6">
+        <div class="space-y-4">
+            <div>
+                <label for="gemini_api_key" class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                <input 
+                    type="password" 
+                    id="gemini_api_key" 
+                    name="gemini_api_key" 
+                    placeholder="Enter your Gemini API key" 
+                    value="{{ gemini_api_key or '' }}"
+                    class="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                >
+                <p class="mt-1 text-sm text-gray-500">Please Enter you Google Gemini API Key</p>
+            </div>
+            
+            <div>
+                <label for="pg-mcp-server" class="block text-sm font-medium text-gray-700 mb-1">PG-MCP Server URL</label>
+                <input 
+                    type="password" 
+                    id="pg-mcp-server" 
+                    name="pg-mcp-server" 
+                    placeholder="Enter the URL of the PG-MCP server" 
+                    value="{{ p or '' }}"
+                    class="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                >
+                <p class="mt-1 text-sm text-gray-500">Format: http://localhost:8000/sse</p>
+            </div>
+
+            <div>
+                <label for="database_url" class="block text-sm font-medium text-gray-700 mb-1">PostgreSQL Connection String</label>
+                <input 
+                    type="text" 
+                    id="database_url" 
+                    name="database_url" 
+                    placeholder="postgresql://user:password@localhost:5432/dbname" 
+                    value="{{ database_url or '' }}"
+                    class="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                >
+                <p class="mt-1 text-sm text-gray-500">Format: postgresql://user:password@host:port/dbname</p>
+            </div>
+        </div>
+        
+        <div class="flex justify-end">
+            <button 
+                type="submit" 
+                class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition duration-200"
+            >
+                Save Settings
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

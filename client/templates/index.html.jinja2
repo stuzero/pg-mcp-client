@@ -1,0 +1,54 @@
+{% extends "application.html.jinja2" %}
+
+{% block title %}PG-MCP-Client{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow-lg w-full max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">PG-MCP</h1>
+    
+    {% if not is_configured %}
+    <div class="mb-4 p-4 rounded-lg bg-yellow-100 text-yellow-700">
+        <p>⚠️ Please <a href="/settings" class="underline font-medium">configure your settings</a> before using the chat.</p>
+    </div>
+    {% endif %}
+    
+    <!-- User Input Panel (Top) -->
+    <div class="mb-6">
+        <div class="p-4 border rounded-lg bg-gray-50">
+            <form method="post" action="/chat" hx-post="/chat" hx-target="#response-panel" hx-swap="innerHTML" hx-indicator=".htmx-indicator" class="space-y-4">
+                <div>
+                    <label for="message" class="block text-sm font-medium text-gray-700 mb-2">Your Query:</label>
+                    <textarea 
+                        id="message"
+                        name="message" 
+                        rows="3"
+                        placeholder="Ask a question about your database..." 
+                        class="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                        {% if not is_configured %}disabled{% endif %}
+                    ></textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button 
+                        type="submit" 
+                        class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-200"
+                        {% if not is_configured %}disabled{% endif %}
+                    >
+                        Submit Query
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Response Panel (Bottom) -->
+    <div class="border rounded-lg p-4 bg-gray-50 min-h-[300px]" id="response-panel">
+        <div class="text-gray-500 text-center">Submit a query to see results here</div>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div class="htmx-indicator text-center text-gray-500 mt-2 hidden">
+        <div class="animate-pulse">Processing your query...</div>
+    </div>
+</div>
+{% endblock %}
