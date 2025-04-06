@@ -1,40 +1,40 @@
 # client/routes/settings.py
-from starlette.templating import Jinja2Templates
 from starlette.responses import HTMLResponse
+from starlette.requests import Request
 
 from ..config import logger
-
-# Initialize templates
-templates = Jinja2Templates(directory='client/templates')
 
 async def settings_page(request):
     """Display the settings page with current values if available."""
     context = {
         'request': request,
-        'gemini_api_key': getattr(request.app.state, 'GEMINI_API_KEY', ''),
-        'pg-mcp-server': getattr(request.app.state, 'PG_MCP_SERVER_URL', ''),
-        'database_url': getattr(request.app.state, 'DATABASE_URL', ''),
+        'llm_api_key': request.session.get('LLM_API_KEY', ''),
+        'llm': request.session.get('LLM', 'Gemini'),
+        'pg_mcp_server': request.session.get('PG_MCP_SERVER_URL', ''),
+        'database_url': request.session.get('DATABASE_URL', ''),
     }
-    return templates.TemplateResponse('settings.html.jinja2', context)
+    return request.app.state.templates.TemplateResponse('settings.html.jinja2', context)
 
 async def settings_update(request):
     """Update the settings based on form submission."""
     form_data = await request.form()
     
-    # Update application state
-    request.app.state.GEMINI_API_KEY = form_data.get('gemini_api_key', '')
-    request.app.state.PG_MCP_SERVER_URL = form_data.get('pg-mcp-server', '')
-    request.app.state.DATABASE_URL = form_data.get('database_url', '')
+    # Update session data
+    request.session['LLM_API_KEY'] = form_data.get('llm_api_key', '')
+    request.session['LLM'] = form_data.get('llm', 'Gemini')
+    request.session['PG_MCP_SERVER_URL'] = form_data.get('pg-mcp-server', '')
+    request.session['DATABASE_URL'] = form_data.get('database_url', '')
     
     logger.info("Settings updated successfully")
     
     # Render settings page with success message
     context = {
         'request': request,
-        'gemini_api_key': request.app.state.GEMINI_API_KEY,
-        'pg-mcp-server' : request.app.state.PG_MCP_SERVER_URL,
-        'database_url': request.app.state.DATABASE_URL,
+        'llm_api_key': request.session['LLM_API_KEY'],
+        'llm': request.session['LLM'],
+        'pg_mcp_server': request.session['PG_MCP_SERVER_URL'],
+        'database_url': request.session['DATABASE_URL'],
         'message': 'Settings updated successfully!',
         'success': True
     }
-    return templates.TemplateResponse('settings.html.jinja2', context)
+    return request.app.state.templates.TemplateResponse('settings.html.jinja2', context)

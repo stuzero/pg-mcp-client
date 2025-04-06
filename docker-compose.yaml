@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  pg-mcp-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pg-mcp-client
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./client:/app/client
+    restart: unless-stopped
