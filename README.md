@@ -1,6 +1,9 @@
 # PG-MCP-Client
 
-A web-based client application for the PostgreSQL Model Context Protocol (PG-MCP) server that allows users to query databases using natural language.
+A web-based client application for the PostgreSQL Model Context Protocol (PG-MCP) server that allows users to query databases using natural language.  
+
+More info on the pg-mcp project here:
+### [https://stuzero.github.io/pg-mcp/](https://stuzero.github.io/pg-mcp/)
 
 ## Overview
 
@@ -36,7 +39,7 @@ The client connects to a PG-MCP server, which provides database schema informati
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pg-mcp-client.git
+git clone https://github.com/stuzero/pg-mcp-client.git
 cd pg-mcp-client
 
 # Create a .env file with your application secret
@@ -53,7 +56,7 @@ This project uses `uv` for dependency management:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pg-mcp-client.git
+git clone https://github.com/stuzero/pg-mcp-client.git
 cd pg-mcp-client
 
 # Install dependencies and create a virtual environment ( .venv )
@@ -113,6 +116,7 @@ Query Execution → Results Display
 
 - [PG-MCP Server](https://github.com/stuzero/pg-mcp-server): The server component for PostgreSQL database access
 - [Model Context Protocol](https://modelcontextprotocol.io): The underlying protocol for AI agent interactions
+- [PydanticAI](https://ai.pydantic.dev): The Agent framework for this client
 
 ## Contributing
 
