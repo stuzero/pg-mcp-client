@@ -77,9 +77,13 @@ class AgentService:
         try:
             logger.info(f"Connecting to MCP server at {self.mcp_url}")
             
-            # Create SSE client and session
-            streams = await sse_client(url=self.mcp_url).__aenter__()
-            self.session = await ClientSession(*streams).__aenter__()
+            # Create SSE client and store context manager for proper cleanup
+            self._sse_client = sse_client(url=self.mcp_url)
+            self._streams = await self._sse_client.__aenter__()
+            
+            # Create and initialize the session
+            self._session_client = ClientSession(*self._streams)
+            self.session = await self._session_client.__aenter__()
             
             # Initialize the session
             await self.session.initialize()
@@ -117,155 +121,35 @@ class AgentService:
     async def close(self):
         """Close the connection to the MCP server and database."""
         try:
-            if self.conn_id:
+            if self.conn_id and self.session:
                 # Try to disconnect from database
-                await self.session.call_tool(
-                    "disconnect",
-                    {"conn_id": self.conn_id}
-                )
-                logger.info(f"Disconnected from database with ID: {self.conn_id}")
-                
-            # Close the MCP session
-            if self.session:
-                await self.session.__aexit__(None, None, None)
-                logger.info("Closed MCP session")
-                
-        except Exception as e:
-            logger.error(f"Error closing agent service: {str(e)}")
-    
-    async def get_schema(self):
-        """
-        Fetch the database schema information as JSON.
-        
-        Returns:
-            str or None: JSON representation of the database schema
-        """
-        if not self.conn_id:
-            logger.error("Not connected to database")
-            return None
-        
-        try:
-            logger.info("Fetching database schema...")
-            schema_resource = f"pgmcp://{self.conn_id}/"
-            schema_response = await self.session.read_resource(schema_resource)
+                try:
+                    await self.session.call_tool(
+                        "disconnect",
+                        {"conn_id": self.conn_id}
+                    )
+                    logger.info(f"Disconnected from database with ID: {self.conn_id}")
+                except Exception as e:
+                    logger.error(f"Error disconnecting from database: {str(e)}")
             
-            # Extract content
-            content = None
-            if hasattr(schema_response, 'contents') and schema_response.contents:
-                content = schema_response.contents[0]
-            elif hasattr(schema_response, 'content') and schema_response.content:
-                content = schema_response.content[0]
+            # Properly exit the context managers in reverse order
+            if hasattr(self, '_session_client') and self._session_client:
+                try:
+                    await self._session_client.__aexit__(None, None, None)
+                    logger.info("Closed MCP session")
+                except Exception as e:
+                    logger.error(f"Error closing session: {str(e)}")
             
-            if content and hasattr(content, 'text'):
-                schema_data = json.loads(content.text)
-                schema_count = len(schema_data.get('schemas', []))
-                logger.info(f"Retrieved schema information: {schema_count} schemas")
-                return json.dumps(schema_data, indent=2)
-            else:
-                logger.error("Could not extract schema data from response")
-                return None
+            if hasattr(self, '_sse_client') and self._sse_client:
+                try:
+                    await self._sse_client.__aexit__(None, None, None)
+                    logger.info("Closed SSE connection")
+                except Exception as e:
+                    logger.error(f"Error closing SSE connection: {str(e)}")
                 
         except Exception as e:
-            logger.error(f"Error fetching schema information: {str(e)}")
-            return None
-        
-    async def format_schema_text(self, schema_json):
-        """
-        Format the schema JSON into a more readable text format for the LLM.
-        
-        Args:
-            schema_json: JSON representation of the database schema
+            logger.error(f"Error during close: {str(e)}")
             
-        Returns:
-            str: Formatted schema text for LLM context
-        """
-        try:
-            schema_data = json.loads(schema_json)
-            
-            output = "DATABASE HIERARCHY:\n\n"
-            
-            for schema in schema_data.get('schemas', []):
-                schema_name = schema.get('name')
-                schema_desc = schema.get('description', '')
-                
-                # Add schema header
-                output += f"SCHEMA: {schema_name}\n"
-                
-                # Add tables for this schema
-                for i, table in enumerate(schema.get('tables', [])):
-                    table_name = table.get('name')
-                    table_desc = table.get('description', '')
-                    row_count = table.get('row_count', 0)
-                    row_count_text = f" ({row_count} rows)" if row_count is not None else ""
-                    
-                    # Determine if this is the last table in the schema
-                    is_last_table = i == len(schema.get('tables', [])) - 1
-                    table_prefix = '└── ' if is_last_table else '├── '
-                    
-                    # Add table line
-                    output += f"{table_prefix}TABLE: {table_name}{row_count_text}\n"
-                    
-                    # Add columns
-                    for j, column in enumerate(table.get('columns', [])):
-                        column_name = column.get('name')
-                        column_type = column.get('type')
-                        
-                        # Gather constraints for this column
-                        constraints = []
-                        
-                        if not column.get('nullable', True):
-                            constraints.append('NOT NULL')
-                        
-                        if 'PRIMARY KEY' in column.get('constraints', []):
-                            constraints.append('PRIMARY KEY')
-                        
-                        if 'UNIQUE' in column.get('constraints', []):
-                            constraints.append('UNIQUE')
-                        
-                        # Check if this column is part of a foreign key
-                        for fk in table.get('foreign_keys', []):
-                            if column_name in fk.get('columns', []):
-                                ref_schema = fk.get('referenced_schema', '')
-                                ref_table = fk.get('referenced_table', '')
-                                ref_cols = fk.get('referenced_columns', [])
-                                ref_col = ref_cols[fk.get('columns', []).index(column_name)] if ref_cols and column_name in fk.get('columns', []) else ''
-                                
-                                constraints.append(f"FK → {ref_schema}.{ref_table}({ref_col})")
-                        
-                        # Format constraints text
-                        constraints_text = f", {', '.join(constraints)}" if constraints else ""
-                        
-                        # Determine if this is the last column in the table
-                        is_last_column = j == len(table.get('columns', [])) - 1
-                        
-                        # Determine the appropriate prefix based on the nested level
-                        if is_last_table:
-                            column_prefix = '    └── ' if is_last_column else '    ├── '
-                        else:
-                            column_prefix = '│   └── ' if is_last_column else '│   ├── '
-                        
-                        # Add column line
-                        output += f"{column_prefix}{column_name}: {column_type}{constraints_text}\n"
-                    
-                    # Add description if available
-                    if table_desc:
-                        description_prefix = '    ' if is_last_table else '│   '
-                        output += f"{description_prefix}Description: {table_desc}\n"
-                    
-                    # Add vertical spacing between tables (except for the last table)
-                    if not is_last_table:
-                        output += "│\n"
-                
-                # Add vertical spacing between schemas
-                if schema != schema_data.get('schemas', [])[-1]:
-                    output += "\n"
-            
-            return output
-            
-        except Exception as e:
-            logger.error(f"Error formatting schema text: {str(e)}")
-            return "Error formatting schema data"
-    
     def _clean_sql_query(self, sql_query):
         """
         Clean a SQL query by handling escaped quotes and trailing backslashes.
@@ -276,29 +160,11 @@ class AgentService:
         Returns:
             str: Cleaned SQL query
         """
-        # Handle escaped quotes - need to do this character by character
-        result = ""
-        i = 0
+        # Use unicode_escape to properly handle all escape sequences
+        import codecs
         
-        while i < len(sql_query):
-            if sql_query[i] == '\\' and i + 1 < len(sql_query):
-                # This is an escape sequence
-                if sql_query[i+1] == '"':
-                    # Convert escaped quote to regular quote
-                    result += '"'
-                    i += 2  # Skip both the backslash and the quote
-                elif sql_query[i+1] == '\\':
-                    # Handle escaped backslash
-                    result += '\\'
-                    i += 2  # Skip both backslashes
-                else:
-                    # Some other escape sequence, keep it
-                    result += sql_query[i:i+2]
-                    i += 2
-            else:
-                # Regular character
-                result += sql_query[i]
-                i += 1
+        # Handle as unicode escape sequence
+        result = codecs.decode(sql_query, 'unicode_escape')
         
         # Remove any extraneous whitespace or newlines
         result = result.strip()
@@ -456,6 +322,139 @@ class AgentService:
                 "explanation": "",
                 "results": []
             }
+    
+    async def get_schema(self):
+        """
+        Fetch the database schema information as JSON.
+        
+        Returns:
+            str or None: JSON representation of the database schema
+        """
+        if not self.conn_id:
+            logger.error("Not connected to database")
+            return None
+        
+        try:
+            logger.info("Fetching database schema...")
+            schema_resource = f"pgmcp://{self.conn_id}/"
+            schema_response = await self.session.read_resource(schema_resource)
+            
+            # Extract content
+            content = None
+            if hasattr(schema_response, 'contents') and schema_response.contents:
+                content = schema_response.contents[0]
+            elif hasattr(schema_response, 'content') and schema_response.content:
+                content = schema_response.content[0]
+            
+            if content and hasattr(content, 'text'):
+                schema_data = json.loads(content.text)
+                schema_count = len(schema_data.get('schemas', []))
+                logger.info(f"Retrieved schema information: {schema_count} schemas")
+                return json.dumps(schema_data, indent=2)
+            else:
+                logger.error("Could not extract schema data from response")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error fetching schema information: {str(e)}")
+            return None
+        
+    async def format_schema_text(self, schema_json):
+        """
+        Format the schema JSON into a more readable text format for the LLM.
+        
+        Args:
+            schema_json: JSON representation of the database schema
+            
+        Returns:
+            str: Formatted schema text for LLM context
+        """
+        try:
+            schema_data = json.loads(schema_json)
+            
+            output = "DATABASE HIERARCHY:\n\n"
+            
+            for schema in schema_data.get('schemas', []):
+                schema_name = schema.get('name')
+                schema_desc = schema.get('description', '')
+                
+                # Add schema header
+                output += f"SCHEMA: {schema_name}\n"
+                
+                # Add tables for this schema
+                for i, table in enumerate(schema.get('tables', [])):
+                    table_name = table.get('name')
+                    table_desc = table.get('description', '')
+                    row_count = table.get('row_count', 0)
+                    row_count_text = f" ({row_count} rows)" if row_count is not None else ""
+                    
+                    # Determine if this is the last table in the schema
+                    is_last_table = i == len(schema.get('tables', [])) - 1
+                    table_prefix = '└── ' if is_last_table else '├── '
+                    
+                    # Add table line
+                    output += f"{table_prefix}TABLE: {table_name}{row_count_text}\n"
+                    
+                    # Add columns
+                    for j, column in enumerate(table.get('columns', [])):
+                        column_name = column.get('name')
+                        column_type = column.get('type')
+                        
+                        # Gather constraints for this column
+                        constraints = []
+                        
+                        if not column.get('nullable', True):
+                            constraints.append('NOT NULL')
+                        
+                        if 'PRIMARY KEY' in column.get('constraints', []):
+                            constraints.append('PRIMARY KEY')
+                        
+                        if 'UNIQUE' in column.get('constraints', []):
+                            constraints.append('UNIQUE')
+                        
+                        # Check if this column is part of a foreign key
+                        for fk in table.get('foreign_keys', []):
+                            if column_name in fk.get('columns', []):
+                                ref_schema = fk.get('referenced_schema', '')
+                                ref_table = fk.get('referenced_table', '')
+                                ref_cols = fk.get('referenced_columns', [])
+                                ref_col = ref_cols[fk.get('columns', []).index(column_name)] if ref_cols and column_name in fk.get('columns', []) else ''
+                                
+                                constraints.append(f"FK → {ref_schema}.{ref_table}({ref_col})")
+                        
+                        # Format constraints text
+                        constraints_text = f", {', '.join(constraints)}" if constraints else ""
+                        
+                        # Determine if this is the last column in the table
+                        is_last_column = j == len(table.get('columns', [])) - 1
+                        
+                        # Determine the appropriate prefix based on the nested level
+                        if is_last_table:
+                            column_prefix = '    └── ' if is_last_column else '    ├── '
+                        else:
+                            column_prefix = '│   └── ' if is_last_column else '│   ├── '
+                        
+                        # Add column line
+                        output += f"{column_prefix}{column_name}: {column_type}{constraints_text}\n"
+                    
+                    # Add description if available
+                    if table_desc:
+                        description_prefix = '    ' if is_last_table else '│   '
+                        output += f"{description_prefix}Description: {table_desc}\n"
+                    
+                    # Add vertical spacing between tables (except for the last table)
+                    if not is_last_table:
+                        output += "│\n"
+                
+                # Add vertical spacing between schemas
+                if schema != schema_data.get('schemas', [])[-1]:
+                    output += "\n"
+            
+            return output
+            
+        except Exception as e:
+            logger.error(f"Error formatting schema text: {str(e)}")
+            return "Error formatting schema data"
             
     @classmethod
     async def from_request(cls, request):
@@ -474,7 +473,16 @@ class AgentService:
         mcp_url = request.session.get('PG_MCP_SERVER_URL', '')
         database_url = request.session.get('DATABASE_URL', '')
         
-        # Create and initialize the service
+        if not api_key:
+            raise ValueError("LLM API key is required")
+        
+        if not mcp_url:
+            raise ValueError("MCP server URL is required")
+        
+        if not database_url:
+            raise ValueError("Database URL is required")
+            
+        # Create the service (no initialization needed now)
         service = cls(mcp_url, database_url, llm, api_key)
         await service.initialize()
         
