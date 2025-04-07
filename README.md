@@ -4,7 +4,7 @@ A web-based client application for the PostgreSQL Model Context Protocol (PG-MCP
 
 ## Overview
 
-PG-MCP-Client provides a user-friendly web interface for interacting with PostgreSQL databases through the [PG-MCP server](https://github.com/stuzero/pg-mcp). It leverages AI language models to translate natural language questions into SQL queries, making database exploration accessible to users without SQL expertise.
+PG-MCP-Client provides a user-friendly web interface for interacting with PostgreSQL databases through the [PG-MCP server](https://github.com/stuzero/pg-mcp-server). It leverages AI language models to translate natural language questions into SQL queries, making database exploration accessible to users without SQL expertise.
 
 The client connects to a PG-MCP server, which provides database schema information and query execution capabilities, while an AI provider (Anthropic, Google, or OpenAI) handles the natural language understanding and SQL generation.
 
