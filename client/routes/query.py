@@ -72,59 +72,92 @@ async def execute_query(request):
             explanation = result.get('explanation', '')
             results = result.get('results', [])
             
-            # Format results into an HTML table
+            # Format results using Grid.js
             if results:
                 # Get column headers from first result
                 headers = list(results[0].keys())
                 
-                # Generate the HTML table
-                table_html = """
-                <div class="overflow-x-auto mt-4">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-100">
-                            <tr>
-                """
+                # Create a unique ID for this Grid.js instance
+                grid_id = f"results-grid-{hash(user_query) % 10000}"
                 
-                # Add headers
-                for header in headers:
-                    table_html += f'<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{header}</th>'
+                # Convert results to JSON for Grid.js
+                import json
+                results_json = json.dumps(results)
                 
-                table_html += """
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                """
-                
-                # Add rows
-                for row in results:
-                    table_html += '<tr class="hover:bg-gray-50">'
-                    for header in headers:
-                        value = row.get(header, '')
-                        # Format the value based on type
-                        if value is None:
-                            formatted_value = '<span class="text-gray-400">NULL</span>'
-                        elif isinstance(value, (int, float)):
-                            formatted_value = f'<span class="text-right">{value}</span>'
-                        else:
-                            formatted_value = str(value)
-                        
-                        table_html += f'<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatted_value}</td>'
-                    table_html += '</tr>'
-                
-                table_html += """
-                        </tbody>
-                    </table>
-                </div>
+                # Create Grid.js initialization
+                gridjs_init = f"""
+                <div id="{grid_id}" class="mt-4 w-full"></div>
+                <script>
+                    new gridjs.Grid({{
+                        columns: {json.dumps(headers)},
+                        data: {results_json},
+                        sort: true,
+                        pagination: {{
+                            limit: 10
+                        }},
+                        search: true,
+                        className: {{
+                            table: 'w-full border-collapse'
+                        }}
+                    }}).render(document.getElementById("{grid_id}"));
+                </script>
                 <div class="mt-2 text-sm text-gray-500">
-                    Total rows: {row_count}
+                    Total rows: {len(results)}
                 </div>
-                """.format(row_count=len(results))
+                """
                 
-                # Create results section
+                # Add download button for CSV export
+                download_script = f"""
+                <div class="mt-3 flex justify-end">
+                    <button 
+                        id="download-csv" 
+                        class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm flex items-center"
+                        onclick="downloadCSV()"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Export CSV
+                    </button>
+                </div>
+                <script>
+                    function downloadCSV() {{
+                        const results = {results_json};
+                        if (!results.length) return;
+                        
+                        const headers = Object.keys(results[0]);
+                        let csvContent = headers.join(',') + '\\n';
+                        
+                        results.forEach(row => {{
+                            const values = headers.map(header => {{
+                                const value = row[header];
+                                // Handle null values and escape quotes
+                                const formattedValue = value === null ? '' : String(value).replace(/"/g, '""');
+                                // Wrap in quotes to handle commas and special characters
+                                return `"${{formattedValue}}"`;
+                            }});
+                            csvContent += values.join(',') + '\\n';
+                        }});
+                        
+                        const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.setAttribute('href', url);
+                        link.setAttribute('download', 'query_results.csv');
+                        link.style.visibility = 'hidden';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }}
+                </script>
+                """
+
+                # Create results section with Grid.js and download button
                 results_section = f"""
                 <div class="mt-6">
                     <h3 class="text-lg font-medium text-gray-900">Results</h3>
-                    {table_html}
+                    {gridjs_init}
+                    {download_script}
                 </div>
                 """
             else:
@@ -137,17 +170,18 @@ async def execute_query(request):
                 </div>
                 """
             
-            # Create the complete response
+            # Create the complete response with results first, then SQL
+            # Note the 'language-sql' class for highlight.js
             response_html = f"""
             <div class="space-y-6">
-                <div>
+                {results_section}
+                
+                <div class="mt-6">
                     <h3 class="text-lg font-medium text-gray-900">Generated SQL</h3>
-                    <div class="mt-2 p-4 bg-gray-800 text-white rounded-lg overflow-x-auto">
-                        <pre><code>{sql}</code></pre>
+                    <div class="mt-2 p-4 bg-gray-800 rounded-lg overflow-x-auto">
+                        <pre><code class="language-sql">{sql}</code></pre>
                     </div>
                 </div>
-                
-                {results_section}
             </div>
             """
             
