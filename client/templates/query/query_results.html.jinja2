@@ -1,0 +1,64 @@
+<!-- client/templates/query/query_results.html.jinja2 -->
+<!-- This template represents the entire results area with tabs -->
+{% if results %}
+<div id="results-area">
+    <!-- Tabs -->
+    <div class="flex space-x-2 mb-4" role="tablist">
+        <a 
+            href="/query/view?view=table" 
+            class="px-4 py-2 rounded-full text-sm font-medium 
+                   {% if active_tab == 'table' %}bg-gray-700 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300 hover:text-gray-900{% endif %} 
+                   transition"
+            role="tab" 
+            aria-selected="{{ 'true' if active_tab == 'table' else 'false' }}"
+            hx-get="/query/view?view=table&include_tabs=true" 
+            hx-target="#results-area"
+            hx-push-url="false"
+        >
+            Table Results
+        </a>
+        <a 
+            href="/query/view?view=sql" 
+            class="px-4 py-2 rounded-full text-sm font-medium 
+                   {% if active_tab == 'sql' %}bg-gray-700 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300 hover:text-gray-900{% endif %} 
+                   transition"
+            role="tab" 
+            aria-selected="{{ 'true' if active_tab == 'sql' else 'false' }}"
+            hx-get="/query/view?view=sql&include_tabs=true" 
+            hx-target="#results-area"
+            hx-push-url="false"
+            hx-on="htmx:afterSwap: document.querySelectorAll('#tab-content pre code').forEach((block) => hljs.highlightElement(block))"
+        >
+            SQL Code
+        </a>
+        <a 
+            href="/query/view?view=visualization" 
+            class="px-4 py-2 rounded-full text-sm font-medium 
+                   {% if active_tab == 'visualization' %}bg-gray-700 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300 hover:text-gray-900{% endif %} 
+                   transition"
+            role="tab" 
+            aria-selected="{{ 'true' if active_tab == 'visualization' else 'false' }}"
+            hx-get="/query/view?view=visualization&include_tabs=true" 
+            hx-target="#results-area"
+            hx-push-url="false"
+        >
+            Visualization
+        </a>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="tab-content">
+        {% if active_tab == 'sql' %}
+            {% include "query/generated_sql.html.jinja2" %}
+        {% elif active_tab == 'visualization' %}
+            {% include "query/results_visualization.html.jinja2" %}
+        {% else %}
+            {% include "query/results_table.html.jinja2" %}
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="p-4 bg-gray-50 text-gray-700 rounded-lg">
+    No results available. Please execute a query.
+</div>
+{% endif %}

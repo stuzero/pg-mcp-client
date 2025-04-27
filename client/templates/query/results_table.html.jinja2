@@ -1,0 +1,71 @@
+<!-- client/templates/query/results_table.html.jinja2 -->
+<div class="mt-6">
+    <h3 class="text-lg font-medium text-gray-900">Results</h3>
+    {% if results %}
+        <div id="{{ grid_id }}" class="mt-4 w-full"></div>
+        <script>
+            new gridjs.Grid({
+                columns: {{ headers | tojson }},
+                data: {{ results | tojson }},
+                sort: true,
+                pagination: {
+                    limit: 10
+                },
+                search: true,
+                className: {
+                    table: 'w-full border-collapse'
+                }
+            }).render(document.getElementById("{{ grid_id }}"));
+        </script>
+        <div class="mt-2 text-sm text-gray-500">
+            Total rows: {{ results | length }}
+        </div>
+        
+        <div class="mt-3 flex justify-end">
+            <button 
+                id="download-csv" 
+                class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm flex items-center"
+                onclick="downloadCSV()"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export CSV
+            </button>
+        </div>
+        <script>
+            function downloadCSV() {
+                const results = {{ results | tojson }};
+                if (!results.length) return;
+                
+                const headers = Object.keys(results[0]);
+                let csvContent = headers.join(',') + '\n';
+                
+                results.forEach(row => {
+                    const values = headers.map(header => {
+                        const value = row[header];
+                        // Handle null values and escape quotes
+                        const formattedValue = value === null ? '' : String(value).replace(/"/g, '""');
+                        // Wrap in quotes to handle commas and special characters
+                        return `"${formattedValue}"`;
+                    });
+                    csvContent += values.join(',') + '\n';
+                });
+                
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'query_results.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        </script>
+    {% else %}
+        <div class="p-4 bg-gray-50 text-gray-700 rounded-lg">
+            Query executed successfully but returned no results.
+        </div>
+    {% endif %}
+</div>

@@ -1,0 +1,50 @@
+<!-- client/templates/query/results_visualization.html.jinja2 -->
+<div class="mt-6">
+    <h3 class="text-lg font-medium text-gray-900">Visualization</h3>
+    {% if visualization_spec %}
+        <div id="vis-container" class="mt-4 w-full bg-white rounded-lg p-4 shadow-sm" style="min-height: 300px;">
+            <!-- Container for the visualization -->
+        </div>
+        <script>
+            (function() {
+                // Parse the Vega-Lite spec
+                const spec = {{ visualization_spec | safe }};
+                
+                // Create the Vega-Lite view
+                vegaEmbed('#vis-container', spec, {
+                    renderer: 'canvas', // Use canvas renderer for better performance
+                    actions: {
+                        export: true,
+                        source: false,
+                        compiled: false,
+                        editor: false
+                    }
+                }).then(function(result) {
+                    // Access the Vega view instance for additional control
+                    const view = result.view;
+                }).catch(console.error);
+            })();
+        </script>
+        
+        <div class="mt-4 text-sm text-gray-500">
+            <p>This visualization was automatically generated based on your query results.</p>
+            {% if chart_explanation %}
+                <div class="mt-2 p-3 bg-blue-50 rounded-md">
+                    <p class="font-medium text-blue-900">About this chart:</p>
+                    <p class="text-blue-800">{{ chart_explanation }}</p>
+                </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="p-4 bg-gray-50 text-gray-700 rounded-lg">
+            <p>No visualization is available for this query result. The data may not be suitable for visualization or insufficient data is available.</p>
+            <p class="mt-2">Visualizations work best with:</p>
+            <ul class="list-disc ml-6 mt-1 text-sm">
+                <li>Numeric data that can be aggregated (sums, averages, etc.)</li>
+                <li>Time series data showing trends over time</li>
+                <li>Category comparisons with measurable values</li>
+                <li>Data that has clear relationships or distributions</li>
+            </ul>
+        </div>
+    {% endif %}
+</div>

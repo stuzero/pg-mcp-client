@@ -38,6 +38,23 @@
     .gridjs-loading {
         @apply flex justify-center items-center p-4;
     }
+    
+    /* Tab styling */
+    .results-tabs {
+        @apply flex border-b border-gray-200 mb-4;
+    }
+    .results-tab {
+        @apply py-2 px-4 text-sm font-medium cursor-pointer;
+    }
+    .results-tab.active {
+        @apply border-b-2 border-blue-500 text-blue-600;
+    }
+    .results-tab:not(.active) {
+        @apply text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300;
+    }
+    .tab-content {
+        @apply py-2;
+    }
 </style>
 {% endblock %}
 

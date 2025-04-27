@@ -13,7 +13,7 @@ from starlette.templating import Jinja2Templates
 from client.config import logger
 from client.routes.home import homepage
 from client.routes.settings import settings_page, settings_update
-from client.routes.query import query_page, execute_query
+from client.routes.query import query_page, execute_query, view_query_results
 
 from client.middleware import ConfigSessionMiddleware
 
@@ -37,6 +37,7 @@ routes = [
     Route('/settings', endpoint=settings_update, methods=['POST']),
     Route('/query', endpoint=query_page, methods=["GET"]),
     Route('/query/execute', endpoint=execute_query, methods=["POST"]),
+    Route('/query/view', endpoint=view_query_results, methods=["GET"])
 ]
 
 middleware = [

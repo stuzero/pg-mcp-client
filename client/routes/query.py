@@ -24,6 +24,49 @@ async def query_page(request):
     
     return request.app.state.templates.TemplateResponse('query.html.jinja2', context)
 
+async def view_query_results(request):
+    """Handle HTMX requests to view different tabs (table, sql, visualization)."""
+    # Get the requested view type from the query parameters
+    view_type = request.query_params.get('view', 'table')
+    include_tabs = request.query_params.get('include_tabs', 'false').lower() == 'true'
+    
+    # Get results from session
+    sql = request.session.get('current_sql', '')
+    results = request.session.get('current_results', [])
+    grid_id = request.session.get('current_grid_id', f"results-grid")
+    
+    # Get visualization data if available
+    visualization_spec = request.session.get('current_visualization_spec', None)
+    chart_explanation = request.session.get('current_chart_explanation', None)
+    
+    # Create headers from the first result if available
+    headers = list(results[0].keys()) if results and len(results) > 0 else []
+    
+    context = {
+        'request': request,
+        'active_tab': view_type,
+        'sql': sql,
+        'results': results,
+        'headers': headers,
+        'grid_id': grid_id,
+        'visualization_spec': visualization_spec,
+        'chart_explanation': chart_explanation
+    }
+    
+    # If include_tabs is true, return the entire results area with tabs
+    if include_tabs:
+        template = 'query/query_results.html.jinja2'
+    else:
+        # Otherwise, return just the tab content
+        if view_type == 'sql':
+            template = 'query/generated_sql.html.jinja2'
+        elif view_type == 'visualization':
+            template = 'query/results_visualization.html.jinja2'
+        else:  # Default to table view
+            template = 'query/results_table.html.jinja2'
+    
+    return request.app.state.templates.TemplateResponse(template, context)
+
 async def execute_query(request):
     """Handle the query submission and return results via HTMX."""
     # Check if all settings are configured
@@ -67,125 +110,41 @@ async def execute_query(request):
                     </div>"""
                 )
             
-            # Format SQL for display
+            # Extract data from result
             sql = result.get('sql', '')
-            explanation = result.get('explanation', '')
             results = result.get('results', [])
+            grid_id = f"results-grid-{hash(user_query) % 10000}"
             
-            # Format results using Grid.js
-            if results:
-                # Get column headers from first result
-                headers = list(results[0].keys())
-                
-                # Create a unique ID for this Grid.js instance
-                grid_id = f"results-grid-{hash(user_query) % 10000}"
-                
-                # Convert results to JSON for Grid.js
-                import json
-                results_json = json.dumps(results)
-                
-                # Create Grid.js initialization
-                gridjs_init = f"""
-                <div id="{grid_id}" class="mt-4 w-full"></div>
-                <script>
-                    new gridjs.Grid({{
-                        columns: {json.dumps(headers)},
-                        data: {results_json},
-                        sort: true,
-                        pagination: {{
-                            limit: 10
-                        }},
-                        search: true,
-                        className: {{
-                            table: 'w-full border-collapse'
-                        }}
-                    }}).render(document.getElementById("{grid_id}"));
-                </script>
-                <div class="mt-2 text-sm text-gray-500">
-                    Total rows: {len(results)}
-                </div>
-                """
-                
-                # Add download button for CSV export
-                download_script = f"""
-                <div class="mt-3 flex justify-end">
-                    <button 
-                        id="download-csv" 
-                        class="bg-green-500 text-white px-3 py-1.5 rounded hover:bg-green-600 text-sm flex items-center"
-                        onclick="downloadCSV()"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Export CSV
-                    </button>
-                </div>
-                <script>
-                    function downloadCSV() {{
-                        const results = {results_json};
-                        if (!results.length) return;
-                        
-                        const headers = Object.keys(results[0]);
-                        let csvContent = headers.join(',') + '\\n';
-                        
-                        results.forEach(row => {{
-                            const values = headers.map(header => {{
-                                const value = row[header];
-                                // Handle null values and escape quotes
-                                const formattedValue = value === null ? '' : String(value).replace(/"/g, '""');
-                                // Wrap in quotes to handle commas and special characters
-                                return `"${{formattedValue}}"`;
-                            }});
-                            csvContent += values.join(',') + '\\n';
-                        }});
-                        
-                        const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.setAttribute('href', url);
-                        link.setAttribute('download', 'query_results.csv');
-                        link.style.visibility = 'hidden';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }}
-                </script>
-                """
-
-                # Create results section with Grid.js and download button
-                results_section = f"""
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium text-gray-900">Results</h3>
-                    {gridjs_init}
-                    {download_script}
-                </div>
-                """
-            else:
-                results_section = """
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium text-gray-900">Results</h3>
-                    <div class="p-4 bg-gray-50 text-gray-700 rounded-lg">
-                        Query executed successfully but returned no results.
-                    </div>
-                </div>
-                """
+            # Store in session for tab views
+            request.session['current_sql'] = sql
+            request.session['current_results'] = results
+            request.session['current_grid_id'] = grid_id
             
-            # Create the complete response with results first, then SQL
-            # Note the 'language-sql' class for highlight.js
-            response_html = f"""
-            <div class="space-y-6">
-                {results_section}
-                
-                <div class="mt-6">
-                    <h3 class="text-lg font-medium text-gray-900">Generated SQL</h3>
-                    <div class="mt-2 p-4 bg-gray-800 rounded-lg overflow-x-auto">
-                        <pre><code class="language-sql">{sql}</code></pre>
-                    </div>
-                </div>
-            </div>
-            """
+            # Create headers from the first result if available
+            headers = list(results[0].keys()) if results and len(results) > 0 else []
             
-            return HTMLResponse(response_html)
+            # Clear any previous visualization data
+            # In a future version, this is where you would generate the visualization
+            request.session['current_visualization_spec'] = None
+            request.session['current_chart_explanation'] = None
+            
+            # Render the results template with tabs
+            context = {
+                'request': request,
+                'active_tab': 'table',  # Default to table view initially
+                'results': results,
+                'headers': headers,
+                'grid_id': grid_id,
+                'sql': sql,
+                'visualization_spec': None,
+                'chart_explanation': None
+            }
+            
+            # Return just the query results panel with tabs
+            return request.app.state.templates.TemplateResponse(
+                'query/query_results.html.jinja2', 
+                context
+            )
             
         finally:
             # Clean up resources
